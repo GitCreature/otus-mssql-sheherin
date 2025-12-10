@@ -77,7 +77,6 @@ ORDER BY YEAR(Invoices.InvoiceDate), MONTH(Invoices.InvoiceDate);
 
 Продажи смотреть в таблице Sales.Invoices и связанных таблицах.
 */
-
 SELECT 
     YEAR(Invoices.InvoiceDate) AS 'Год продажи',
     MONTH(Invoices.InvoiceDate) AS 'Месяц продажи',
@@ -99,3 +98,68 @@ ORDER BY YEAR(Invoices.InvoiceDate), MONTH(Invoices.InvoiceDate);
 Написать запросы 2-3 так, чтобы если в каком-то месяце не было продаж,
 то этот месяц также отображался бы в результатах, но там были нули.
 */
+
+/*
+2. Отобразить все месяцы, где общая сумма продаж превысила 4 600 000
+
+Вывести:
+* Год продажи (например, 2015)
+* Месяц продажи (например, 4)
+* Общая сумма продаж
+
+Продажи смотреть в таблице Sales.Invoices и связанных таблицах.
+*/
+WITH Calendar AS (
+    select yy.value as yearD, mm.value as monthD
+    from 
+    (select value from string_split('1 2 3 4 5 6 7 8 9 10 11 12', ' ')) mm
+    cross join (select value from string_split('2013 2014 2015 2016', ' ')) yy
+)
+SELECT 
+    Calendar.yearD AS 'Год продажи',
+    Calendar.monthD AS 'Месяц продажи',
+    COALESCE(SUM(InvoiceLines.UnitPrice * InvoiceLines.Quantity), 0) AS 'Общая сумма продаж'
+FROM Calendar as Calendar
+LEFT JOIN Sales.Invoices AS Invoices ON Calendar.yearD = YEAR(Invoices.InvoiceDate) AND Calendar.monthD = MONTH(Invoices.InvoiceDate)
+LEFT JOIN Sales.InvoiceLines as InvoiceLines ON Invoices.InvoiceID = InvoiceLines.InvoiceID
+GROUP BY Calendar.yearD, Calendar.monthD
+HAVING SUM(InvoiceLines.UnitPrice * InvoiceLines.Quantity) > 4600000 OR SUM(InvoiceLines.UnitPrice) is null
+ORDER BY Calendar.yearD, Calendar.monthD;
+
+/*
+3. Вывести сумму продаж, дату первой продажи
+и количество проданного по месяцам, по товарам,
+продажи которых менее 50 ед в месяц.
+Группировка должна быть по году,  месяцу, товару.
+
+Вывести:
+* Год продажи
+* Месяц продажи
+* Наименование товара
+* Сумма продаж
+* Дата первой продажи
+* Количество проданного
+
+Продажи смотреть в таблице Sales.Invoices и связанных таблицах.
+*/
+WITH Calendar AS (
+    --select datefromparts(yy.value, mm.value, '01') as monthbegin
+    select yy.value as yearD, mm.value as monthD
+    from 
+    (select value from string_split('1 2 3 4 5 6 7 8 9 10 11 12', ' ')) mm
+    cross join (select value from string_split('2013 2014 2015 2016', ' ')) yy
+)
+SELECT 
+    Calendar.yearD AS 'Год продажи',
+    Calendar.monthD AS 'Месяц продажи',
+    COALESCE(StockItems.StockItemName, '0 Sales') AS 'Наименование товара',
+    COALESCE(SUM(InvoiceLines.UnitPrice * InvoiceLines.Quantity), 0) AS 'Сумма продаж',
+    MIN(Invoices.InvoiceDate) AS 'Дата первой продажи',
+    COALESCE(SUM(InvoiceLines.Quantity), 0) AS 'Количество проданного'
+FROM Calendar as Calendar
+LEFT JOIN Sales.Invoices AS Invoices ON Calendar.yearD = YEAR(Invoices.InvoiceDate) AND Calendar.monthD = MONTH(Invoices.InvoiceDate)
+LEFT JOIN Sales.InvoiceLines AS InvoiceLines ON Invoices.InvoiceID = InvoiceLines.InvoiceID
+LEFT JOIN Warehouse.StockItems AS StockItems ON InvoiceLines.StockItemID = StockItems.StockItemID
+GROUP BY Calendar.yearD, Calendar.monthD , StockItems.StockItemName
+HAVING COALESCE(SUM(InvoiceLines.Quantity), 0) < 50
+ORDER BY Calendar.yearD, Calendar.monthD ;
