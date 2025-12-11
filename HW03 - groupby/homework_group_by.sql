@@ -110,20 +110,27 @@ ORDER BY YEAR(Invoices.InvoiceDate), MONTH(Invoices.InvoiceDate);
 Продажи смотреть в таблице Sales.Invoices и связанных таблицах.
 */
 WITH Calendar AS (
-    select yy.value as yearD, mm.value as monthD
+    select CAST(yy.value AS INT) as yearD, CAST(mm.value AS INT)  as monthD
     from 
     (select value from string_split('1 2 3 4 5 6 7 8 9 10 11 12', ' ')) mm
     cross join (select value from string_split('2013 2014 2015 2016', ' ')) yy
+),
+SalesInvByMonth as (SELECT 
+    YEAR(Invoices.InvoiceDate) AS yearD,
+    MONTH(Invoices.InvoiceDate) AS monthD,
+    SUM(InvoiceLines.UnitPrice * InvoiceLines.Quantity) AS sumbymonth
+FROM Sales.Invoices As Invoices
+JOIN Sales.InvoiceLines as InvoiceLines ON Invoices.InvoiceID = InvoiceLines.InvoiceID
+GROUP BY YEAR(Invoices.InvoiceDate), MONTH(Invoices.InvoiceDate)
+HAVING SUM(InvoiceLines.UnitPrice * InvoiceLines.Quantity) > 4600000
+
 )
 SELECT 
     Calendar.yearD AS 'Год продажи',
     Calendar.monthD AS 'Месяц продажи',
-    COALESCE(SUM(InvoiceLines.UnitPrice * InvoiceLines.Quantity), 0) AS 'Общая сумма продаж'
+    COALESCE(SalesInvByMonth.sumbymonth, 0) AS 'Общая сумма продаж'
 FROM Calendar as Calendar
-LEFT JOIN Sales.Invoices AS Invoices ON Calendar.yearD = YEAR(Invoices.InvoiceDate) AND Calendar.monthD = MONTH(Invoices.InvoiceDate)
-LEFT JOIN Sales.InvoiceLines as InvoiceLines ON Invoices.InvoiceID = InvoiceLines.InvoiceID
-GROUP BY Calendar.yearD, Calendar.monthD
-HAVING SUM(InvoiceLines.UnitPrice * InvoiceLines.Quantity) > 4600000 OR SUM(InvoiceLines.UnitPrice) is null
+LEFT JOIN SalesInvByMonth AS SalesInvByMonth ON Calendar.yearD = SalesInvByMonth.yearD AND Calendar.monthD = SalesInvByMonth.monthD
 ORDER BY Calendar.yearD, Calendar.monthD;
 
 /*
@@ -143,23 +150,31 @@ ORDER BY Calendar.yearD, Calendar.monthD;
 Продажи смотреть в таблице Sales.Invoices и связанных таблицах.
 */
 WITH Calendar AS (
-    --select datefromparts(yy.value, mm.value, '01') as monthbegin
-    select yy.value as yearD, mm.value as monthD
+    select CAST(yy.value AS INT) as yearD, CAST(mm.value AS INT)  as monthD
     from 
     (select value from string_split('1 2 3 4 5 6 7 8 9 10 11 12', ' ')) mm
     cross join (select value from string_split('2013 2014 2015 2016', ' ')) yy
-)
+),
+SalesInvByMonth as (SELECT 
+    YEAR(Invoices.InvoiceDate) AS yearD,
+    MONTH(Invoices.InvoiceDate) AS monthD,
+    StockItems.StockItemName AS StockItemName,
+    SUM(InvoiceLines.UnitPrice * InvoiceLines.Quantity) AS sumSales,
+    MIN(Invoices.InvoiceDate) AS datefirstsales,
+    SUM(InvoiceLines.Quantity) AS Quantity
+FROM Sales.Invoices AS Invoices
+LEFT JOIN Sales.InvoiceLines AS InvoiceLines ON Invoices.InvoiceID = InvoiceLines.InvoiceID
+LEFT JOIN Warehouse.StockItems AS StockItems ON InvoiceLines.StockItemID = StockItems.StockItemID
+GROUP BY YEAR(Invoices.InvoiceDate), MONTH(Invoices.InvoiceDate), StockItems.StockItemName
+HAVING SUM(InvoiceLines.Quantity) < 50)
+
 SELECT 
     Calendar.yearD AS 'Год продажи',
     Calendar.monthD AS 'Месяц продажи',
-    COALESCE(StockItems.StockItemName, '0 Sales') AS 'Наименование товара',
-    COALESCE(SUM(InvoiceLines.UnitPrice * InvoiceLines.Quantity), 0) AS 'Сумма продаж',
-    MIN(Invoices.InvoiceDate) AS 'Дата первой продажи',
-    COALESCE(SUM(InvoiceLines.Quantity), 0) AS 'Количество проданного'
+    COALESCE(SalesInvByMonth.StockItemName, '0 Sales') AS 'Наименование товара',
+    COALESCE(SalesInvByMonth.sumSales, 0) AS 'Сумма продаж',
+    SalesInvByMonth.datefirstsales AS 'Дата первой продажи',
+    COALESCE(SalesInvByMonth.Quantity, 0) AS 'Количество проданного'
 FROM Calendar as Calendar
-LEFT JOIN Sales.Invoices AS Invoices ON Calendar.yearD = YEAR(Invoices.InvoiceDate) AND Calendar.monthD = MONTH(Invoices.InvoiceDate)
-LEFT JOIN Sales.InvoiceLines AS InvoiceLines ON Invoices.InvoiceID = InvoiceLines.InvoiceID
-LEFT JOIN Warehouse.StockItems AS StockItems ON InvoiceLines.StockItemID = StockItems.StockItemID
-GROUP BY Calendar.yearD, Calendar.monthD , StockItems.StockItemName
-HAVING COALESCE(SUM(InvoiceLines.Quantity), 0) < 50
-ORDER BY Calendar.yearD, Calendar.monthD ;
+LEFT JOIN SalesInvByMonth AS SalesInvByMonth ON Calendar.yearD = SalesInvByMonth.yearD AND Calendar.monthD = SalesInvByMonth.monthD
+ORDER BY Calendar.yearD, Calendar.monthD;
