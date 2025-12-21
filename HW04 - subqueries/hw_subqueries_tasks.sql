@@ -110,14 +110,14 @@ WHERE StockItems.UnitPrice = MinPrice.MinPriceValue;
 SELECT DISTINCT Customers.CustomerID, Customers.CustomerName
 FROM Sales.Customers as Customers
 WHERE Customers.CustomerID IN (
-    SELECT TOP 5 CustomerID
+    SELECT TOP 5 WITH TIES CustomerID 
     FROM Sales.CustomerTransactions
     ORDER BY TransactionAmount DESC
 );
 
 --2
 WITH DistinctTopCustomers AS (
-    SELECT DISTINCT TOP 5 
+    SELECT DISTINCT TOP 5 WITH TIES
         CustomerID, TransactionAmount
     FROM Sales.CustomerTransactions
     ORDER BY TransactionAmount DESC
@@ -137,7 +137,7 @@ ORDER BY Customers.CustomerID;
 
 --1
     WITH Top3MostExpensiveItems AS (
-        SELECT TOP 3 
+        SELECT TOP 3 WITH TIES
             StockItemID,
             StockItemName,
             UnitPrice
@@ -180,7 +180,7 @@ INNER JOIN Sales.Customers as Customers ON Invoices.CustomerID = Customers.Custo
 INNER JOIN Application.Cities as Cities ON Customers.DeliveryCityID = Cities.CityID
 INNER JOIN Application.People as People ON Invoices.PackedByPersonID = People.PersonID
 WHERE InvoiceLines.StockItemID IN (
-    SELECT TOP 3 StockItemID
+    SELECT TOP 3 WITH TIES StockItemID 
     FROM Warehouse.StockItems
     ORDER BY UnitPrice DESC
 )
